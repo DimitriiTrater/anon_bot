@@ -1,1 +1,3 @@
-TOKEN = "6b56c4a67637c0654891fc04dd8779074fecc7080ef47bd99c6a3a213772f1718623fbf1efe5d0a36aa81"
+import os
+get_token = os.environ['get_token']
+TOKEN = get_token
