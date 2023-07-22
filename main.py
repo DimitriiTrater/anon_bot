@@ -3,7 +3,7 @@ import asyncio
 from api import api
 from kbd_manager import KBDManager
 from vkbottle.bot import Bot, Message
-
+from vkbottle import VKAPIError
 
 bot = Bot(api=api)
 
@@ -51,44 +51,47 @@ async def search(message: Message):
         keyboard=KBDManager.stop_dialog_k
     )
     
+    del wait[0]
     await bot.api.messages.send(
         peer_id=wait[0],
         random_id=0,
         message='Мы нашли вам собеседника!',
         keyboard=KBDManager.stop_dialog_k
     )
-    
-    del wait[0]
 
 
 @bot.on.message(text="/stop_search")
 async def stop_search(message: Message):
-    if message.from_id in wait:
-        del wait[wait.index(message.from_id)]
-        await message.answer('Вы остановили поиск.', keyboard=KBDManager.start_keyboard)
-    else:
-        await message.answer('Вы не в очереди!')
+    if message.from_id not in wait:
+        await message.answer('Вы не в очереди!', keyboard=KBDManager.start_keyboard)
+        return;
+    
+    del wait[wait.index(message.from_id)]
+    await message.answer('Вы остановили поиск.', keyboard=KBDManager.start_keyboard)
 
 
 @bot.on.message(text="/stop_dialog")
 async def stop_dialog(message: Message):
-    if message.from_id in dialogs:
-        await bot.api.messages.send(
-            peer_id=message.from_id,
-            random_id=0,
-            message='Диалог был остановлен.',
-            keyboard=KBDManager.start_keyboard
-            )
-        await bot.api.messages.send(
-            peer_id=dialogs[message.from_id],
-            random_id=0,
-            message='Собеседник остановил диалог.',
-            keyboard=KBDManager.start_keyboard
-            )
-        del dialogs[dialogs[message.from_id]]
-        del dialogs[message.from_id]
-    else:
+    if message.from_id not in dialogs:
         await message.answer('У вас нет собеседника!')
+        return;
+
+    await bot.api.messages.send(
+        peer_id=message.from_id,
+        random_id=0,
+        message='Диалог был остановлен.',
+        keyboard=KBDManager.start_keyboard
+        )
+    await bot.api.messages.send(
+        peer_id=dialogs[message.from_id],
+        random_id=0,
+        message='Собеседник остановил диалог.',
+        keyboard=KBDManager.start_keyboard
+        )
+    del dialogs[dialogs[message.from_id]]
+    del dialogs[message.from_id]
+
+
 
 
 @bot.on.message()
@@ -122,6 +125,14 @@ async def all(message: Message):
                 )
         del dialogs[dialogs[message.from_id]]
         del dialogs[message.from_id]
+
+
+
+async def check_can_write(user_id: int) -> bool:
+    conversation = await bot.api.messages.get_conversations_by_id([user_id])
+    can_write = conversation.items[0].can_write.allowed
+    return can_write
+
 
 if __name__ == "__main__":
     bot.run_forever()
