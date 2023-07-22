@@ -55,7 +55,7 @@ async def search(message: Message):
     await bot.api.messages.send(
         peer_id=user_id,
         random_id=0,
-        message='Мы нашли вам собеседника!',
+        message="Мы нашли вам собеседника!",
         keyboard=KBDManager.stop_dialog_k
     )
 
@@ -65,7 +65,7 @@ async def search(message: Message):
         await bot.api.messages.send(
             peer_id=user_id,
             random_id=0,
-            message='Собеседник запретил писать ему сообщения.\nНачните поиск снова.',
+            message="Собеседник запретил писать ему сообщения.\nНачните поиск снова.",
             keyboard=KBDManager.start_keyboard
         )   
         return;
@@ -73,7 +73,7 @@ async def search(message: Message):
     await bot.api.messages.send(
         peer_id=first_in_queue,
         random_id=0,
-        message='Мы нашли вам собеседника!',
+        message="Мы нашли вам собеседника!",
         keyboard=KBDManager.stop_dialog_k
     )
 
@@ -83,11 +83,11 @@ async def stop_search(message: Message):
     if not await check_can_write(message.from_id): return;
 
     if message.from_id not in wait:
-        await message.answer('Вы не в очереди!', keyboard=KBDManager.start_keyboard)
+        await message.answer("Вы не в очереди!", keyboard=KBDManager.start_keyboard)
         return;
     
     del wait[wait.index(message.from_id)]
-    await message.answer('Вы остановили поиск.', keyboard=KBDManager.start_keyboard)
+    await message.answer("Вы остановили поиск.", keyboard=KBDManager.start_keyboard)
 
 
 @bot.on.message(text="/stop_dialog")
@@ -98,7 +98,7 @@ async def stop_dialog(message: Message):
     if not await check_can_write(first_usr): return;
 
     if first_usr not in dialogs:
-        await message.answer('У вас нет собеседника!', keyboard=KBDManager.start_keyboard)
+        await message.answer("У вас нет собеседника!", keyboard=KBDManager.start_keyboard)
         return;
 
     del dialogs[first_usr]
@@ -107,7 +107,7 @@ async def stop_dialog(message: Message):
     await bot.api.messages.send(
         peer_id=first_usr,
         random_id=0,
-        message='Диалог был остановлен.',
+        message="Диалог был остановлен.",
         keyboard=KBDManager.start_keyboard
     )
     
@@ -116,7 +116,7 @@ async def stop_dialog(message: Message):
     await bot.api.messages.send(
         peer_id=second_usr,
         random_id=0,
-        message='Собеседник остановил диалог.',
+        message="Собеседник остановил диалог.",
         keyboard=KBDManager.start_keyboard
     )
 
@@ -124,35 +124,46 @@ async def stop_dialog(message: Message):
 
 @bot.on.message()
 async def all(message: Message):
-    if message.from_id in wait:
+    first_usr = message.from_id
+    if not await check_can_write(first_usr): return;
+
+    if first_usr in wait:
         await message.answer(
-            'Вы уже ищите собеседника! \n /stop_search - отменить поиск',
-            keyboard=KBDManager.stop_search_k)
-    if message.from_id not in wait and message.from_id not in dialogs:
+            "Вы уже ищите собеседника!\n/stop_search - отменить поиск",
+            keyboard=KBDManager.stop_search_k
+        )
+        return;
+    
+    if first_usr not in wait and first_usr not in dialogs:
         await message.answer(
-            'Привет, используй кнопку. Если тебе вылезло это сообщение, то скорее всего ты не в очереди ожидания и не в диалоге. Если ты не начинал поиск и не был в диалоге, то всё хорошо, просто начинай поиск. Но если ты был в очереди/диалоге, то проверь разрешил ли ты отправлять группе сообщения. Если всё в порядке, то скорее всего проблема у нас и мы о ней уже знаем и пытаемся исправить. Попробуй начать поиск сначала.',
+            "Привет, используй кнопку.", 
             keyboard=KBDManager.start_keyboard
         )
-    try:
-        if message.from_id in dialogs:
-            await bot.api.messages.send(peer_id=dialogs[message.from_id], random_id=0, message='Собеседник: ' + message.text)
-    except VKAPIError[901]:
-        try:
+        return;
+    
+    if first_usr in wait and first_usr in dialogs:
+        del dialogs[first_usr]
+        del wait[wait.index(first_usr)]
+        return;
+    
+    if first_usr in dialogs:
+        second_usr = dialogs[first_usr]
+        if await check_can_write(second_usr):
             await bot.api.messages.send(
-                peer_id=message.from_id,
-                random_id=0,
-                message='Собеседник запретил отправлять ему сообщения, диалог остановлен.',
-                keyboard=start_keyboard
-                )
-        except VKAPIError[901]:
-            await bot.api.messages.send(
-                peer_id=dialogs[message.from_id],
-                random_id=0,
-                message='Собеседник запретил отправлять ему сообщения, диалог остановлен.',
-                keyboard=KBDManager.start_keyboard
-                )
-        del dialogs[dialogs[message.from_id]]
-        del dialogs[message.from_id]
+                peer_id=second_usr, 
+                random_id=0, 
+                message="Собеседник: " + message.text
+            )
+            return;
+            
+        del dialogs[first_usr]
+        del dialogs[second_usr]
+        await bot.api.messages.send(
+            peer_id=first_usr,
+            random_id=0,
+            message="Собеседник запретил отправлять ему сообщения.\nНачни поиск снова.",
+            keyboard=KBDManager.start_keyboard
+        )
 
 
 
