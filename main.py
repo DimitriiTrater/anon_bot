@@ -43,18 +43,21 @@ async def search(message: Message):
     
     dialogs[message.from_id] = wait[0]
     dialogs[wait[0]] = message.from_id
+
     await bot.api.messages.send(
         peer_id=message.from_id,
         random_id=0,
         message='Мы нашли вам собеседника!',
         keyboard=KBDManager.stop_dialog_k
     )
+    
     await bot.api.messages.send(
         peer_id=wait[0],
         random_id=0,
         message='Мы нашли вам собеседника!',
         keyboard=KBDManager.stop_dialog_k
     )
+    
     del wait[0]
 
 
@@ -62,7 +65,7 @@ async def search(message: Message):
 async def stop_search(message: Message):
     if message.from_id in wait:
         del wait[wait.index(message.from_id)]
-        await message.answer('Вы остановили поиск.', keyboard=start_keyboard)
+        await message.answer('Вы остановили поиск.', keyboard=KBDManager.start_keyboard)
     else:
         await message.answer('Вы не в очереди!')
 
@@ -74,7 +77,7 @@ async def stop_dialog(message: Message):
             peer_id=message.from_id,
             random_id=0,
             message='Диалог был остановлен.',
-            keyboard=start_keyboard
+            keyboard=KBDManager.start_keyboard
             )
         await bot.api.messages.send(
             peer_id=dialogs[message.from_id],
