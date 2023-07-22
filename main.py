@@ -1,19 +1,22 @@
 import asyncio
+import types
 
 from api import api
+from typing import List, Dict
 from kbd_manager import KBDManager
 from vkbottle.bot import Bot, Message
 from vkbottle import VKAPIError
 
 bot = Bot(api=api)
 
-wait = []
-
-dialogs = {}
+wait:    List[int]      = []
+dialogs: Dict[int, int] = {}
 
 
 @bot.on.message(text="Большой брат бдит")
 async def big_brother(message: Message):
+    if not await check_can_write(message.from_id): return;
+    
     await message.answer(
         f"Здравствуйте, великий! \nКоличество диалогов: {len(dialogs)}.\nЛюдей в очереди: {len(wait)}"
     )
@@ -21,6 +24,8 @@ async def big_brother(message: Message):
 
 @bot.on.message(text="Начать")
 async def hi_handler(message: Message):
+    if not await check_can_write(message.from_id): return;
+
     user_info = await bot.api.users.get(message.from_id)
     await message.answer(
         f"Привет, {user_info[0].first_name}.\n Чтобы начать поиск напиши \'/search\' или ткни на кнопку.",
@@ -30,30 +35,46 @@ async def hi_handler(message: Message):
 
 @bot.on.message(text="/search")
 async def search(message: Message):
-    if message.from_id in wait or message.from_id in dialogs:
+    user_id = message.from_id
+    if not await check_can_write(user_id): return;
+
+    if user_id in wait or user_id in dialogs:
         return;
 
     if not wait:
         await message.answer(
-            "Поиск, чтобы остановить поиск нажми на кнопку.",
+            "В очереди.",
             keyboard=KBDManager.stop_search_k
         )
-        wait.append(message.from_id)
+        wait.append(user_id)
         return;
     
-    dialogs[message.from_id] = wait[0]
-    dialogs[wait[0]] = message.from_id
+    first_in_queue = wait[0]
+    del wait[0]
+    
+    dialogs[user_id] = first_in_queue
+    dialogs[first_in_queue] = user_id
 
     await bot.api.messages.send(
-        peer_id=message.from_id,
+        peer_id=user_id,
         random_id=0,
         message='Мы нашли вам собеседника!',
         keyboard=KBDManager.stop_dialog_k
     )
-    
-    del wait[0]
+
+    if not await check_can_write(first_in_queue): 
+        del dialogs[user_id]
+        del dialogs[first_in_queue]
+        await bot.api.messages.send(
+            peer_id=user_id,
+            random_id=0,
+            message='Собеседник запретил писать ему сообщения.\nНачните поиск снова.',
+            keyboard=KBDManager.start_keyboard
+        )   
+        return;
+
     await bot.api.messages.send(
-        peer_id=wait[0],
+        peer_id=first_in_queue,
         random_id=0,
         message='Мы нашли вам собеседника!',
         keyboard=KBDManager.stop_dialog_k
@@ -62,6 +83,8 @@ async def search(message: Message):
 
 @bot.on.message(text="/stop_search")
 async def stop_search(message: Message):
+    if not await check_can_write(message.from_id): return;
+
     if message.from_id not in wait:
         await message.answer('Вы не в очереди!', keyboard=KBDManager.start_keyboard)
         return;
@@ -72,9 +95,14 @@ async def stop_search(message: Message):
 
 @bot.on.message(text="/stop_dialog")
 async def stop_dialog(message: Message):
+    if not await check_can_write(message.from_id): return;
+
     if message.from_id not in dialogs:
         await message.answer('У вас нет собеседника!')
         return;
+
+    del dialogs[dialogs[message.from_id]]
+    del dialogs[message.from_id]
 
     await bot.api.messages.send(
         peer_id=message.from_id,
@@ -82,15 +110,15 @@ async def stop_dialog(message: Message):
         message='Диалог был остановлен.',
         keyboard=KBDManager.start_keyboard
         )
+    
+    if not await check_can_write(message.from_id): return;
+    
     await bot.api.messages.send(
         peer_id=dialogs[message.from_id],
         random_id=0,
         message='Собеседник остановил диалог.',
         keyboard=KBDManager.start_keyboard
         )
-    del dialogs[dialogs[message.from_id]]
-    del dialogs[message.from_id]
-
 
 
 
