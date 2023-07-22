@@ -42,10 +42,7 @@ async def search(message: Message):
         return;
 
     if not wait:
-        await message.answer(
-            "В очереди.",
-            keyboard=KBDManager.stop_search_k
-        )
+        await message.answer("В очереди.", keyboard=KBDManager.stop_search_k)
         wait.append(user_id)
         return;
     
@@ -95,30 +92,33 @@ async def stop_search(message: Message):
 
 @bot.on.message(text="/stop_dialog")
 async def stop_dialog(message: Message):
-    if not await check_can_write(message.from_id): return;
+    first_usr:  int = message.from_id
+    second_usr: int = dialogs[first_usr]
 
-    if message.from_id not in dialogs:
-        await message.answer('У вас нет собеседника!')
+    if not await check_can_write(first_usr): return;
+
+    if first_usr not in dialogs:
+        await message.answer('У вас нет собеседника!', keyboard=KBDManager.start_keyboard)
         return;
 
-    del dialogs[dialogs[message.from_id]]
-    del dialogs[message.from_id]
+    del dialogs[first_usr]
+    del dialogs[second_usr]
 
     await bot.api.messages.send(
-        peer_id=message.from_id,
+        peer_id=first_usr,
         random_id=0,
         message='Диалог был остановлен.',
         keyboard=KBDManager.start_keyboard
-        )
+    )
     
-    if not await check_can_write(message.from_id): return;
+    if not await check_can_write(second_usr): return;
     
     await bot.api.messages.send(
-        peer_id=dialogs[message.from_id],
+        peer_id=second_usr,
         random_id=0,
         message='Собеседник остановил диалог.',
         keyboard=KBDManager.start_keyboard
-        )
+    )
 
 
 
