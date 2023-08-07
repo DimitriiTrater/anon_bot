@@ -1,5 +1,6 @@
 from vkbottle import Keyboard, Text, KeyboardButtonColor
 
+
 class KBDManager:
     start_keyboard = (
         Keyboard(one_time=False, inline=False)
@@ -16,5 +17,5 @@ class KBDManager:
     stop_dialog_k = (
         Keyboard(one_time=False, inline=False)
         .row()
-        .add(Text(label="/stop_dialog"),color=KeyboardButtonColor.NEGATIVE)
+        .add(Text(label="/stop_dialog"), color=KeyboardButtonColor.NEGATIVE)
         )
