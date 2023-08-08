@@ -1,7 +1,8 @@
 from api import api
-from typing import List, Dict
-from kbd_manager import KBDManager
+from typing import List, Dict, TypeVar
+from kbd_manager import KBDManager, Keyboard
 from vkbottle.bot import Bot, Message
+from consts import CONSTS
 
 bot = Bot(api=api)
 
@@ -95,7 +96,6 @@ async def stop_search(message: Message):
 @bot.on.message(text="/stop_dialog")
 async def stop_dialog(message: Message):
     first_usr:  int = message.from_id
-    second_usr: int = dialogs[first_usr]
 
     if not await check_can_write(first_usr):
         return
@@ -104,6 +104,8 @@ async def stop_dialog(message: Message):
         await message.answer("У вас нет собеседника!",
                              keyboard=KBDManager.start_keyboard)
         return
+
+    second_usr: int = dialogs[first_usr]
 
     del dialogs[first_usr]
     del dialogs[second_usr]
@@ -154,21 +156,12 @@ async def all(message: Message):
     if first_usr in dialogs:
         second_usr = dialogs[first_usr]
         if await check_can_write(second_usr):
-            await bot.api.messages.send(
-                peer_id=second_usr,
-                random_id=0,
-                message="Собеседник: " + message.text
-            )
+            await send_message(second_usr, message)
             return
 
         del dialogs[first_usr]
         del dialogs[second_usr]
-        await bot.api.messages.send(
-            peer_id=first_usr,
-            random_id=0,
-            message="Собеседник запретил отправлять ему сообщения.\nНачни поиск снова.",
-            keyboard=KBDManager.start_keyboard
-        )
+        await send_message(first_usr, CONSTS.STRING.FORBIDDEN, KBDManager.start_keyboard)
 
 
 async def check_can_write(user_id: int) -> bool:
@@ -176,6 +169,48 @@ async def check_can_write(user_id: int) -> bool:
     can_write = conversation.items[0].can_write.allowed
     return can_write
 
+
+async def send_message(user_id_out: int,
+                       message_in: Message,
+                       keyboard: Keyboard = Keyboard()
+                       ):
+    await bot.api.messages.send(
+        peer_id=user_id_out,
+        random_id=0,
+        message="Собеседник: " + message_in.text,
+    )
+    print("DEBUGING: " + str(len(message_in.attachments)))
+
+    await send_attachments(user_id_out, message_in)
+
+
+async def send_attachments(user_id_out: int, message_in: Message) -> int:
+    print("SEND_ATTACHMENTS FUNCTION")
+
+    if not message_in.attachments[0]:
+        return 1
+
+    print("ATTACHEMNTS HAS")
+
+    for attachment in message_in.attachments:
+        t = await get_attachment(attachment)
+        print("Before sending attachment")
+        await bot.api.messages.send(
+            peer_id=user_id_out,
+            random_id=0,
+            attachment=str(t)
+        )
+        print("After sending attachment")
+    return 0
+
+
+async def get_attachment(attachment) -> str:
+    type_str = attachment.type.value
+    owner_id = eval(f"attachment.{type_str}.owner_id")
+    media_id = eval(f"attachment.{type_str}.id")
+    acs_tok = eval(f"attachment.{type_str}.access_key")
+    return f"{type_str}{owner_id}_{media_id}_{acs_tok}"
+    
 
 if __name__ == "__main__":
     bot.run_forever()
