@@ -193,12 +193,19 @@ async def send_attachments(user_id_out: int, message_in: Message) -> int:
     print("ATTACHEMNTS HAS")
 
     for attachment in message_in.attachments:
+        if (attachment.sticker.sticker_id):
+            await bot.api.messages.send(
+                peer_id=user_id_out,
+                random_id=0,
+                sticker_id=attachment.sticker.sticker_id
+            )
+            return 0
         t = await get_attachment(attachment)
         print("Before sending attachment")
         await bot.api.messages.send(
             peer_id=user_id_out,
             random_id=0,
-            attachment=str(t)
+            attachment=t
         )
         print("After sending attachment")
     return 0
@@ -210,7 +217,6 @@ async def get_attachment(attachment) -> str:
     media_id = eval(f"attachment.{type_str}.id")
     acs_tok = eval(f"attachment.{type_str}.access_key")
     return f"{type_str}{owner_id}_{media_id}_{acs_tok}"
-    
 
 if __name__ == "__main__":
     bot.run_forever()
