@@ -1,12 +1,9 @@
-from api import api
-from typing import List, Dict
 from kbd_manager import KBDManager
-from vkbottle.bot import Bot, Message
-
-bot = Bot(api=api)
-
-wait:    List[int] = []
-dialogs: Dict[int, int] = {}
+from utils import check_can_write
+from utils import send_message, send_text
+from consts import CONSTS
+from usr_bot import app, bot
+from vkbottle.bot import Message
 
 
 @bot.on.message(text="Большой брат бдит")
@@ -15,7 +12,9 @@ async def big_brother(message: Message):
         return
 
     await message.answer(
-        f"Здравствуйте, великий! \nКоличество диалогов: {len(dialogs)}.\nЛюдей в очереди: {len(wait)}"
+        f"""Здравствуйте, великий!
+        \nКоличество диалогов: {app.get_size_of_users_in_dialog()}.
+        \nЛюдей в очереди: {app.get_size_of_wait_list()}"""
     )
 
 
@@ -26,7 +25,8 @@ async def hi_handler(message: Message):
 
     user_info = await bot.api.users.get(message.from_id)
     await message.answer(
-        f"Привет, {user_info[0].first_name}.\n Чтобы начать поиск напиши \'/search\' или ткни на кнопку.",
+        f"""Привет, {user_info[0].first_name}.\n
+        Чтобы начать поиск напиши \'/search\' или ткни на кнопку.""",
         keyboard=KBDManager.start_keyboard
     )
 
@@ -37,19 +37,19 @@ async def search(message: Message):
     if not await check_can_write(user_id):
         return
 
-    if user_id in wait or user_id in dialogs:
+    if user_id in app.wait_list or user_id in app.dialogs_dict:
         return
 
-    if not wait:
+    if not app.wait_list:
         await message.answer("В очереди.", keyboard=KBDManager.stop_search_k)
-        wait.append(user_id)
+        app.wait_list.append(user_id)
         return
 
-    first_in_queue = wait[0]
-    del wait[0]
+    first_in_queue = app.wait_list[0]
+    del app.wait_list[0]
 
-    dialogs[user_id] = first_in_queue
-    dialogs[first_in_queue] = user_id
+    app.dialogs_dict[user_id] = first_in_queue
+    app.dialogs_dict[first_in_queue] = user_id
 
     await bot.api.messages.send(
         peer_id=user_id,
@@ -59,12 +59,12 @@ async def search(message: Message):
     )
 
     if not await check_can_write(first_in_queue):
-        del dialogs[user_id]
-        del dialogs[first_in_queue]
+        del app.dialogs_dict[user_id]
+        del app.dialogs_dict[first_in_queue]
         await bot.api.messages.send(
             peer_id=user_id,
             random_id=0,
-            message="Собеседник запретил писать ему сообщения.\nНачните поиск снова.",
+            message=CONSTS.STRING.FORBIDDEN,
             keyboard=KBDManager.start_keyboard
         )
         return
@@ -82,12 +82,12 @@ async def stop_search(message: Message):
     if not await check_can_write(message.from_id):
         return
 
-    if message.from_id not in wait:
+    if message.from_id not in app.wait_list:
         await message.answer("Вы не в очереди!",
                              keyboard=KBDManager.start_keyboard)
         return
 
-    del wait[wait.index(message.from_id)]
+    del app.wait_list[app.wait_list.index(message.from_id)]
     await message.answer("Вы остановили поиск.",
                          keyboard=KBDManager.start_keyboard)
 
@@ -95,18 +95,19 @@ async def stop_search(message: Message):
 @bot.on.message(text="/stop_dialog")
 async def stop_dialog(message: Message):
     first_usr:  int = message.from_id
-    second_usr: int = dialogs[first_usr]
 
     if not await check_can_write(first_usr):
         return
 
-    if first_usr not in dialogs:
+    if first_usr not in app.dialogs_dict:
         await message.answer("У вас нет собеседника!",
                              keyboard=KBDManager.start_keyboard)
         return
 
-    del dialogs[first_usr]
-    del dialogs[second_usr]
+    second_usr: int = app.dialogs_dict[first_usr]
+
+    del app.dialogs_dict[first_usr]
+    del app.dialogs_dict[second_usr]
 
     await bot.api.messages.send(
         peer_id=first_usr,
@@ -132,50 +133,36 @@ async def all(message: Message):
     if not await check_can_write(first_usr):
         return
 
-    if first_usr in wait:
+    if first_usr in app.wait_list:
         await message.answer(
             "Вы уже ищите собеседника!\n/stop_search - отменить поиск",
             keyboard=KBDManager.stop_search_k
         )
         return
 
-    if first_usr not in wait and first_usr not in dialogs:
+    if first_usr not in app.wait_list and first_usr not in app.dialogs_dict:
         await message.answer(
             "Привет, используй кнопку.",
             keyboard=KBDManager.start_keyboard
         )
         return
 
-    if first_usr in wait and first_usr in dialogs:
-        del dialogs[first_usr]
-        del wait[wait.index(first_usr)]
+    if first_usr in app.wait_list and first_usr in app.dialogs_dict:
+        del app.dialogs_dict[first_usr]
+        del app.wait_list[app.wait_list.index(first_usr)]
         return
 
-    if first_usr in dialogs:
-        second_usr = dialogs[first_usr]
+    if first_usr in app.dialogs_dict:
+        second_usr = app.dialogs_dict[first_usr]
         if await check_can_write(second_usr):
-            await bot.api.messages.send(
-                peer_id=second_usr,
-                random_id=0,
-                message="Собеседник: " + message.text
-            )
+            await send_message(second_usr, message)
             return
 
-        del dialogs[first_usr]
-        del dialogs[second_usr]
-        await bot.api.messages.send(
-            peer_id=first_usr,
-            random_id=0,
-            message="Собеседник запретил отправлять ему сообщения.\nНачни поиск снова.",
-            keyboard=KBDManager.start_keyboard
-        )
-
-
-async def check_can_write(user_id: int) -> bool:
-    conversation = await bot.api.messages.get_conversations_by_id([user_id])
-    can_write = conversation.items[0].can_write.allowed
-    return can_write
-
+        del app.dialogs_dict[first_usr]
+        del app.dialogs_dict[second_usr]
+        await send_text(user_id_out=first_usr,
+                        message_in=CONSTS.STRING.FORBIDDEN,
+                        keyboard=KBDManager.start_keyboard)
 
 if __name__ == "__main__":
     bot.run_forever()
